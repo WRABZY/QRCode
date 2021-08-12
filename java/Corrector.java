@@ -25,13 +25,9 @@ class Corrector {
     private static final int[][] GF = generateGF();
 
     public static byte[][] makeCorrectionBlocks(byte[][] blocks, Level level, int version) {
-        //System.out.println("# received: " + Arrays.deepToString(blocks));
+        
         int needToCreateCorrectionBytes = level.getCorrectionBytesPerBlock(version);
-        //System.out.println("# version: " + version); 
-        //System.out.println("# level: " + level); 
-        //System.out.println("# need to create " + needToCreateCorrectionBytes + " corr bytes");
         int[] generatingPolynomial = GENERATING_POLYNOMIAL.get(needToCreateCorrectionBytes);
-        //System.out.println("# generating poly: " + Arrays.toString(generatingPolynomial));
         int[][] correctionBlocks = new int[blocks.length][needToCreateCorrectionBytes];
         int correctionBlocksPointer = 0;
         
@@ -48,7 +44,6 @@ class Corrector {
                 }
                 blockPointer++;
                 if (blockPointer % 8 == 0) {
-                    //System.out.println("# nextByte: " + nextByte); 
                     array[arrayPointer++] = nextByte;
                     nextByte = 0;
                 }
@@ -56,9 +51,9 @@ class Corrector {
             while (arrayPointer < arrLength) {
                 array[arrayPointer++] = 0;
             }
-            //System.out.println("# array: " + Arrays.toString(array));
             for (int i = 0; i < bytesInBlock; i++) {
                 int a = array[0];
+                System.out.println("a = " + a);
                 for (int j = 0; j < arrLength - 1; j++) {
                     array[j] = array[j + 1];
                 }

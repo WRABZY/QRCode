@@ -61,6 +61,13 @@ public class QRCode {
     private final byte[][] CODE;
     private final int VERSION;
 
+    private QRCode (byte[][] code) {
+        CODE = code;
+        LEVEL = extractLevel(code);
+        VERSION = extractVersion(code);
+        message = decode();
+    }
+    
     private QRCode (String message, Level level, int possibleVersion) throws UnableToEncodeException {
         MESSAGE = message;
         LEVEL = level;
@@ -85,6 +92,8 @@ public class QRCode {
             }
             code.append("\n");
         }
+        code.append("    [" + VERSION + "" + LEVEL + "] - [" + MESSAGE + "]");
+        code.append("\n");
         return code.toString();
     }
     
@@ -95,22 +104,18 @@ public class QRCode {
         try {
             logger.fine("Trying to encode with H level");
             qr = new QRCode(message, Level.H, 1);
-            logger.fine("Successfully coded with H level\n    Message: \"" + message + "\"");
         } catch (UnableToEncodeException uteeh) {
             try {
                 logger.fine("Attempt to encode with H level failed\n    Trying to encode with Q level");
                 qr = new QRCode(message, Level.Q, 1);
-                logger.fine("Successfully coded with Q level\n    Message: \"" + message + "\"");
             } catch (UnableToEncodeException uteeq) {
                 try {
                     logger.fine("Attempt to encode with Q level failed\n    Trying to encode with M level");
                     qr = new QRCode(message, Level.M, 1);
-                    logger.fine("Successfully coded with M level\n    Message: \"" + message + "\"");
                 } catch (UnableToEncodeException uteem) { 
                     try {
                         logger.fine("Attempt to encode with M level failed\n    Trying to encode with L level");
-                        qr = new QRCode(message, Level.L, 1);
-                        logger.fine("Successfully coded with L level\n    Message: \"" + message + "\"");                        
+                        qr = new QRCode(message, Level.L, 1); 
                     } catch (UnableToEncodeException uteel) { 
                         logger.fine("Attempt to encode with L level failed\n    The message cannot be encoded.\n    Message: \"" + message + "\"");
                         throw uteel;
@@ -128,7 +133,6 @@ public class QRCode {
             try {
                 logger.fine("Encoding the message with " + level + " level without specifying the version\n    Message: \"" + message + "\"");
                 qr = new QRCode(message, level, 1);
-                logger.fine("Successfully coded with " + level + " level\n    Message: \"" + message + "\"");
             } catch (UnableToEncodeException utee) {
                 logger.fine("The message cannot be encoded with " + level + " level.\n    Message: \"" + message + "\"");
                 throw utee;
@@ -154,21 +158,21 @@ public class QRCode {
             try {
                 level = Level.Q;
                 logger.fine("Trying to encode with " + version + " version and " + level + " level");
-                qr = new QRCode(message, Level.Q, version);
+                qr = new QRCode(message, level, version);
                 if (version != qr.getVersion()) throw new TargetVersionException();
             } catch (UnableToEncodeException eq) {
                 logger.fine("Attempt to encode with " + version + " version and " + level + " level failed");
                 try {
                     level = Level.M;
                     logger.fine("Trying to encode with " + version + " version and " + level + " level");
-                    qr = new QRCode(message, Level.Q, version);
+                    qr = new QRCode(message, level, version);
                     if (version != qr.getVersion()) throw new TargetVersionException();
                 } catch (UnableToEncodeException em) {
                     logger.fine("Attempt to encode with " + version + " version and " + level + " level failed");
                     try {
                         level = Level.L;
                         logger.fine("Trying to encode with " + version + " version and " + level + " level");
-                        qr = new QRCode(message, Level.Q, version);
+                        qr = new QRCode(message, level, version);
                         if (version != qr.getVersion()) throw new TargetVersionException("Message \"" + message +"\" is too long to encode with version " + version);
                     } catch (UnableToEncodeException el) {
                         logger.fine("Attempt to encode with " + version + " version and " + level + " level failed\n    The message cannot be encoded with version " + version + ".\n    Message: \"" + message + "\"");
@@ -177,7 +181,6 @@ public class QRCode {
                 }
             }
         }
-        logger.fine("Successfully coded with " + version + " version and " + level + " level\n    Message: \"" + message + "\"");
         return qr;
     }
     
@@ -189,14 +192,27 @@ public class QRCode {
             logger.fine("Encoding the message with " + level + " level and " + version + " version\n    Message: \"" + message + "\"");
             qr = new QRCode(message, level, version);
             if (version != qr.getVersion()) throw new TargetVersionException("Message \"" + message +"\" is too long to encode with version " + version);
-            logger.fine("Successfully coded with " + level + " level and " + version + " version\n    Message: \"" + message + "\"");
         } else {
             qr = QRCode.encode(message, version);
         }
         return qr;
     }
 
+    public static QRCode decode(byte[][] code) {
+        return new QRCode(code);
+    }
+    
+    private Level extractLevel(byte[][] code) {
+        
+    }
+    
+    private int extractVersion(byte[][] code) {
+        
+    }
 
+    private static String decode() {
+        return "";
+    }
     // package access
     static void checkMessage(String message) throws UnableToEncodeException {
         if (message == null || message.length() == 0) throw new UnableToEncodeException("Unable to encode empty message");
@@ -215,27 +231,21 @@ public class QRCode {
         Map.Entry<Integer, byte[]> versionAndEncodedMessage = encodeMessage(targetVersion);
         int version = versionAndEncodedMessage.getKey();
         byte[] encodedMessage = versionAndEncodedMessage.getValue();
-        logger.fine("End of step 1. Encoded message: " + Arrays.toString(encodedMessage) + "\n    Version: " + version);
         
         logger.fine("Step 2. Filling in the code");
         byte[] filled = fill(encodedMessage, version);
-        logger.fine("End of step 2. Filled code: " + Arrays.toString(filled));
         
         logger.fine("Step 3. Splitting the code into blocks");
         byte[][] blocks = splitIntoBlocks(filled, version);
-        logger.fine("End of step 3. Splitted code: " + Arrays.deepToString(blocks));
        
         logger.fine("Step 4. Generating correction blocks");
         byte[][] correctionBlocks = Corrector.makeCorrectionBlocks(blocks, LEVEL, version);
-        logger.fine("End of step 4. Correction blocks: " + Arrays.deepToString(correctionBlocks));
         
         logger.fine("Step 5. Combining data blocks and corrections");
         ArrayList<Byte> qred = combine(blocks, correctionBlocks);
-        logger.fine("End of step 5. Combined blocks: " + qred.toString());
         
         logger.fine("Step 6. Code markup");
         byte[][] code = markup(qred, version);
-        logger.fine("End of step 6. Marked up code: " + Arrays.deepToString(code));
         
         logger.fine("End of QRCode generation");
         
@@ -286,6 +296,13 @@ public class QRCode {
             int index = 0;
             while (index < existingLength) {
                 filledCode[index] = codeToBeFilled[index++];
+            }
+            // padding
+            int i = 0;
+            while (existingLength < targetLength && i < 4) {
+                filledCode[index++] = 0;
+                existingLength += 1;
+                i += 1;
             }
             while (existingLength % 8 != 0) {
                 filledCode[index++] = 0;
@@ -344,7 +361,8 @@ public class QRCode {
     
     private ArrayList<Byte> combine(byte[][] dataBlocks, byte[][] correctionBlocks) {
         ArrayList<Byte> combined = new ArrayList<>();
-        for (int bytePointer = 0; bytePointer < dataBlocks[dataBlocks.length - 1].length; bytePointer += 8) {
+        
+        /*for (int bytePointer = 0; bytePointer < dataBlocks[dataBlocks.length - 1].length; bytePointer += 8) {
             for (int blocksPointer = 0; blocksPointer < dataBlocks.length; blocksPointer++) {
                 if (bytePointer < dataBlocks[blocksPointer].length) {
                     int bitsPointer = bytePointer;
@@ -360,6 +378,16 @@ public class QRCode {
                 do {
                     combined.add(correctionBlocks[blocksPointer][bitsPointer]);
                 } while (++bitsPointer % 8 != 0);
+            }
+        }*/
+        for (int i = 0; i < dataBlocks.length; i++) {
+            for (int j = 0; j < dataBlocks[i].length; j++) {
+                combined.add(dataBlocks[i][j]);
+            }
+        }
+        for (int i = 0; i < correctionBlocks.length; i++) {
+            for (int j = 0; j < correctionBlocks[i].length; j++) {
+                combined.add(correctionBlocks[i][j]);
             }
         }
         return combined;
@@ -509,14 +537,14 @@ public class QRCode {
         
         // trying on masks
         TreeMap<Integer, byte[][]> qrcodes = new TreeMap<>();
-        tryOnMask(qred, 0, qrcodes, qrcode, (x, y) -> (x + y) % 2 == 0);
-        tryOnMask(qred, 1, qrcodes, qrcode, (x, y) -> y % 2 == 0);
-        tryOnMask(qred, 2, qrcodes, qrcode, (x, y) -> x % 3 == 0);
-        tryOnMask(qred, 3, qrcodes, qrcode, (x, y) -> (x + y) % 3 == 0);
-        tryOnMask(qred, 4, qrcodes, qrcode, (x, y) -> (x / 3 + y / 2) % 2 == 0);
-        tryOnMask(qred, 5, qrcodes, qrcode, (x, y) -> (x * y) % 2 + (x * y) % 3 == 0);
-        tryOnMask(qred, 6, qrcodes, qrcode, (x, y) -> ((x * y) % 2 + (x * y) % 3) % 2 == 0);
-        tryOnMask(qred, 7, qrcodes, qrcode, (x, y) -> ((x * y) % 3 + (x + y) % 2) % 2 == 0);
+        tryOnMask(qred, 0, qrcodes, qrcode, (i, j) -> (i + j) % 2 == 0);
+        tryOnMask(qred, 1, qrcodes, qrcode, (i, j) -> i % 2 == 0);
+        tryOnMask(qred, 2, qrcodes, qrcode, (i, j) -> j % 3 == 0);
+        tryOnMask(qred, 3, qrcodes, qrcode, (i, j) -> (i + j) % 3 == 0);
+        tryOnMask(qred, 4, qrcodes, qrcode, (i, j) -> (j / 3 + i / 2) % 2 == 0);
+        tryOnMask(qred, 5, qrcodes, qrcode, (i, j) -> (i * j) % 2 + (i * j) % 3 == 0);
+        tryOnMask(qred, 6, qrcodes, qrcode, (i, j) -> ((i * j) % 2 + (i * j) % 3) % 2 == 0);
+        tryOnMask(qred, 7, qrcodes, qrcode, (i, j) -> ((i * j) % 3 + (i + j) % 2) % 2 == 0);
         
         logger.fine("Chosen mask with penalty: " + qrcodes.firstEntry().getKey());
         return qrcodes.firstEntry().getValue();
@@ -573,12 +601,12 @@ public class QRCode {
                 while (row > 3) {
                     if (qrcode[row][rightCol] == -1) {
                         if (qredPointer < qred.size()) {
-                            qrcode[row][rightCol] = condition.test(rightCol - 4, row - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
+                            qrcode[row][rightCol] = condition.test(row - 4, rightCol - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
                         } else qrcode[row][rightCol] = 0;
                     }
                     if (qrcode[row][leftCol] == -1) {
                         if (qredPointer < qred.size()) {
-                            qrcode[row][leftCol] = condition.test(leftCol - 4, row - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
+                            qrcode[row][leftCol] = condition.test(row - 4, leftCol - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
                         } else qrcode[row][leftCol] = 0;
                     }  
                     row--;
@@ -588,12 +616,12 @@ public class QRCode {
                 while (row < qrcode.length - 4) {
                     if (qrcode[row][rightCol] == -1) {
                         if (qredPointer < qred.size()) {
-                            qrcode[row][rightCol] = condition.test(rightCol - 4, row - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
+                            qrcode[row][rightCol] = condition.test(row - 4, rightCol - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
                         } else qrcode[row][rightCol] = 0;
                     }
                     if (qrcode[row][leftCol] == -1) {
                         if (qredPointer < qred.size()) {
-                            qrcode[row][leftCol] = condition.test(leftCol - 4, row - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
+                            qrcode[row][leftCol] = condition.test(row - 4, leftCol - 4) ? invert(qred.get(qredPointer++)) : qred.get(qredPointer++);
                         } else qrcode[row][leftCol] = 0;
                     }  
                     row++;
@@ -671,6 +699,7 @@ public class QRCode {
         }
         
         // rule3
+        /*
         // horizontal
         for (int i = 4; i < qrcode.length - 4; i++) {
             for (int j = 4; j < qrcode.length - 14;) {
@@ -763,9 +792,45 @@ public class QRCode {
                     }
                 }
             }
+        }*/
+        // horizontal
+        for (int i = 4; i < qrcode.length - 4; i++) {
+            for (int j = 4; j < qrcode.length - 10;) {
+                if (qrcode[i][j] == 1 &&
+                    qrcode[i][j + 1] == 0 &&
+                    qrcode[i][j + 2] == 1 &&
+                    qrcode[i][j + 3] == 1 &&
+                    qrcode[i][j + 4] == 1 &&
+                    qrcode[i][j + 5] == 0 &&
+                    qrcode[i][j + 6] == 1) {
+                    rule3 += 40;
+                    j += 4;
+                } else {
+                    j++;
+                }
+            }
+        }
+        
+        // vertical
+        for (int j = 4; j < qrcode.length - 4; j++) {
+            for (int i = 4; i < qrcode.length - 10;) {
+                if (qrcode[i][j] == 1 &&
+                    qrcode[i + 1][j] == 0 &&
+                    qrcode[i + 2][j] == 1 &&
+                    qrcode[i + 3][j] == 1 &&
+                    qrcode[i + 4][j] == 1 &&
+                    qrcode[i + 5][j] == 0 &&
+                    qrcode[i + 6][j] == 1) {
+                    rule3 += 40;
+                    i += 4;
+                } else {
+                    i++;
+                }
+            }
         }
         
         // rule4
+        /*
         int blacks = 0;
         int total = 0;
         for (int i = 4; i < qrcode.length - 4; i++) {
@@ -777,13 +842,25 @@ public class QRCode {
         double blacksToTotal = ((double) blacks) / total;
         blacksToTotal *= 100;
         blacksToTotal -= 50;
-        rule4 = ((int) Math.abs(blacksToTotal)) * 2;
+        rule4 = ((int) Math.abs(blacksToTotal)) * 2;*/
+        double blacks = 0.0;
+        double total = 0.0;
+        for (int i = 4; i < qrcode.length - 4; i++) {
+            for (int j = 4; j < qrcode.length - 4; j++) {
+                if (qrcode[i][j] == 1) blacks++;
+                total++;
+            }
+        }
+        int blackPerc = (int) Math.round(blacks / total * 100);
+        int whitePerc = 100 - blackPerc;
+        if (blackPerc > 55) rule4 = rule4 + (blackPerc - 55) * 10;
+        if (whitePerc > 55) rule4 = rule4 + (whitePerc - 55) * 10;
         return rule1 + rule2 + rule3 + rule4;
     }
     
     public static void main(String[] args) throws UnableToEncodeException, TargetVersionException {
-        QRCode first = QRCode.encode("Hello, Habrahabr!", Level.Q);
-        QRPic pic = new QRPic(7, first.CODE);
+        QRCode first = QRCode.encode("HTTPS://WRABZY.GITHUB", 1);
+        QRPic pic = new QRPic(12, first.CODE);
         pic.show();
     }
     
